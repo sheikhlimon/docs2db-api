@@ -71,11 +71,11 @@ class Docs2DBRAGConfig:
 
 # Try to import Llama Stack interfaces (0.7.x+)
 try:
-    from llama_stack_api import ListToolDefsResponse
-    from llama_stack_api import ToolDef
-    from llama_stack_api import ToolInvocationResult
-    from llama_stack_api import ToolRuntime
-    from llama_stack_api import URL
+    from llama_stack_api import ListToolDefsResponse  # type: ignore[no-redef]
+    from llama_stack_api import ToolDef  # type: ignore[no-redef]
+    from llama_stack_api import ToolInvocationResult  # type: ignore[no-redef]
+    from llama_stack_api import ToolRuntime  # type: ignore[no-redef]
+    from llama_stack_api import URL  # type: ignore[no-redef]
 
     LLAMA_STACK_AVAILABLE = True
 except ImportError:
@@ -318,6 +318,7 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
                 error_message=f"Document search failed: {str(e)}",
                 error_code=500,
             )
+
 
 # Required function for inline providers
 async def get_provider_impl(config: Docs2DBRAGConfig, deps: dict[Any, Any]) -> Docs2DBRAGAdapter:
