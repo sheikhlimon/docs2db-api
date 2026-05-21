@@ -44,8 +44,10 @@ dependencies = [
     "xxhash>=3.5.0",
     "fastapi>=0.116.1",
     "uvicorn>=0.35.0",
-    "llama-stack>=0.2.20",
 ]
+
+[project.optional-dependencies]
+llama-stack = ["llama-stack>=0.2.20"]
 
 [project.scripts]
 docs2db-api = "docs2db_api.docs2db_api:app"
