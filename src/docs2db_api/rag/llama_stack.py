@@ -111,7 +111,7 @@ except ImportError:
             self.data = data
 
 
-class Docs2DBRAGAdapter(ToolRuntime):
+class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
     """
     Docs2DB RAG Tool Runtime Adapter for Llama Stack
 
