@@ -46,9 +46,6 @@ dependencies = [
     "uvicorn>=0.35.0",
 ]
 
-[project.optional-dependencies]
-llama-stack = ["llama-stack>=0.2.20"]
-
 [project.scripts]
 docs2db-api = "docs2db_api.docs2db_api:app"
 

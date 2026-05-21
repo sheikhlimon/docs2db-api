@@ -82,17 +82,31 @@ async def main():
 asyncio.run(main())
 ```
 
-## LlamaStack Integration
+## MCP Integration (LlamaStack, Claude, Cursor, etc.)
 
-Docs2DB-API includes an optional LlamaStack tool provider for agent-based RAG. Install with:
+For tool-calling RAG integration with LLM frameworks, use **[docs2db-mcp-server](https://github.com/rhel-lightspeed/docs2db-mcp-server)** — an MCP server that exposes `search_documents` over the standard Model Context Protocol.
+
+Any framework that supports MCP can use it directly:
 
 ```bash
-uv add "docs2db-api[llama-stack]"
+pip install docs2db-mcp-server
+docs2db-mcp --db-host localhost --db-port 5432 --db-name ragdb
 ```
 
-See the complete demo with setup scripts and examples:
+**LlamaStack example** (Responses API):
 
-**[📁 demos/llama-stack/](demos/llama-stack/)** - LlamaStack RAG tool provider with agent demos
+```python
+response = client.responses.create(
+    model="ollama/qwen2.5:7b-instruct",
+    input="How do I configure SSH key-based authentication?",
+    tools=[{
+        "type": "mcp",
+        "server_url": "http://localhost:8000",  # docs2db-mcp-server
+    }],
+)
+```
+
+See the [docs2db-mcp-server README](https://github.com/rhel-lightspeed/docs2db-mcp-server) for full setup and configuration.
 
 ## Configuration
 
