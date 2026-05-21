@@ -2,9 +2,12 @@
 """
 Agent Tool Calling Demo
 =======================
-Demonstrates Llama Stack's agent tool calling functionality with RAG integration.
 
-This script shows how agents can automatically use tools to provide informed responses.
+Multi-turn conversation with Llama Stack's responses API (0.7.x+).
+The agent uses the search_documents tool to answer questions with RAG context.
+
+    python agent_tool_calling_client.py --query "How does SSH work on RHEL?"
+
 """
 
 import argparse
@@ -12,163 +15,104 @@ import argparse
 from llama_stack_client import LlamaStackClient
 
 
-class AgentToolCallingDemo:
-    """Demo client that showcases Llama Stack's agent tool calling capabilities"""
+SEARCH_TOOL = {
+    "type": "function",
+    "name": "search_documents",
+    "description": (
+        "Search RHEL knowledge base using advanced RAG techniques. "
+        "Returns relevant document chunks with similarity scores."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query or question",
+            },
+            "max_chunks": {
+                "type": "integer",
+                "description": "Maximum number of document chunks to retrieve",
+            },
+            "similarity_threshold": {
+                "type": "number",
+                "description": "Minimum similarity threshold (0.0-1.0)",
+            },
+        },
+        "required": ["query"],
+    },
+}
 
-    def __init__(self, base_url: str = "http://localhost:8321"):
-        self.base_url = base_url
-        self.client = LlamaStackClient(base_url=base_url)
-        self.agent_id = None
-        self.session_id = None
+SYSTEM_INSTRUCTIONS = (
+    "You are a helpful assistant with access to a RHEL knowledge base. "
+    "When asked a question, use the search_documents tool to find "
+    "relevant information, then provide a comprehensive answer based "
+    "on the search results."
+)
 
-    def test_connection(self):
-        """Test connection to Llama Stack server"""
-        try:
-            self.client.models.list()
-            return True
-        except Exception:
-            return False
 
-    def create_agent(self):
-        """Create an agent with tool calling configuration"""
-        try:
-            from llama_stack_client.types import AgentConfig
+def run_demo(base_url, query):
+    client = LlamaStackClient(base_url=base_url)
 
-            agent_config = AgentConfig(
-                model="ollama/qwen2.5:7b-instruct",
-                instructions="""You are a helpful assistant with access to search tools.
+    try:
+        client.models.list()
+    except Exception:
+        print(f"Cannot connect to Llama Stack server at {base_url}")
+        return False
 
-When asked a question, you MUST use the search_documents tool to find
-relevant information before answering.
+    print(f"Query: {query}")
+    print("-" * 50)
 
-IMPORTANT: Use the following format for tool calls:
-<function=search_documents>{"query": "your search query here"}</function>
+    response = client.responses.create(
+        model="ollama/qwen2.5:7b-instruct",
+        instructions=SYSTEM_INSTRUCTIONS,
+        input=query,
+        tools=[SEARCH_TOOL],
+        tool_choice="auto",
+        stream=True,
+    )
 
-Always search first, then provide a comprehensive answer based on the
-search results.""",
-                tool_groups=["docs2db::rag"],
-            )
+    tool_calls = []
+    for chunk in response:
+        if hasattr(chunk, "type"):
+            if chunk.type == "response.output_item.added":
+                item = chunk.item
+                if hasattr(item, "type") and item.type == "function_call":
+                    tool_calls.append(item)
+                    print(f"\n[Tool Call] {item.name}({item.arguments})")
+            elif chunk.type == "response.output_text.delta":
+                print(chunk.delta, end="", flush=True)
+            elif chunk.type == "response.completed":
+                break
 
-            agent = self.client.agents.create(agent_config=agent_config)
-            self.agent_id = agent.agent_id
-            print(f"✅ Created agent: {self.agent_id}")
-            return True
-        except Exception as e:
-            print(f"❌ Failed to create agent: {e}")
-            return False
+    print()
+    print("-" * 50)
 
-    def create_session(self):
-        """Create a session for the agent"""
-        try:
-            session = self.client.agents.session.create(agent_id=self.agent_id, session_name="tool-calling-demo")
-            self.session_id = session.session_id
-            print(f"✅ Created session: {self.session_id}")
-            return True
-        except Exception as e:
-            print(f"❌ Failed to create session: {e}")
-            return False
+    if tool_calls:
+        print(f"\nTool calls made: {len(tool_calls)}")
+        for tc in tool_calls:
+            print(f"  - {tc.name}: {tc.arguments}")
 
-    def send_query(self, query: str):
-        """Send a query to the agent and get the response"""
-        try:
-            turn = self.client.agents.turn.create(
-                agent_id=self.agent_id,
-                session_id=self.session_id,
-                toolgroups=["docs2db::rag"],
-                tool_config={
-                    "tool_choice": "auto",
-                    "tool_prompt_format": "function_tag",
-                },
-                messages=[{"role": "user", "content": query}],
-                stream=True,
-            )
-            return turn
-        except Exception as e:
-            print(f"❌ Failed to send query: {e}")
-            return None
-
-    def display_response(self, turn):
-        """Display the agent's response"""
-        if not turn:
-            return ""
-
-        response_content = ""
-
-        # Process the streaming response
-        for chunk in turn:
-            if hasattr(chunk, "event") and hasattr(chunk.event, "payload"):
-                payload = chunk.event.payload
-
-                # Extract text from the response
-                if hasattr(payload, "delta") and hasattr(payload.delta, "text"):
-                    text = payload.delta.text
-                    response_content += text
-
-        return response_content
-
-    def run_demo(self, query: str):
-        """Run the complete agent tool calling demo"""
-        print("🤖 Agent Tool Calling Demo")
-        print("=" * 50)
-        print(f"Query: {query}")
-        print()
-
-        # Test connection
-        if not self.test_connection():
-            print("❌ Cannot connect to Llama Stack server")
-            return False
-
-        print("✅ Connected to Llama Stack server")
-
-        # Create agent
-        if not self.create_agent():
-            return False
-
-        # Create session
-        if not self.create_session():
-            return False
-        print()
-
-        # Send query
-        print("📤 Sending query to agent...")
-        turn = self.send_query(query)
-
-        if not turn:
-            return False
-
-        # Display response
-        print("🤖 Agent Response:")
-        print("-" * 50)
-
-        response = self.display_response(turn)
-
-        if response:
-            print(response)
-        else:
-            print("No response received")
-
-        print("-" * 50)
-        print()
-        print("✅ Demo completed!")
-        print("💡 Check server logs to verify RAG tool execution")
-
-        return True
+    print("\nCheck server logs to verify RAG tool execution")
+    return True
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Agent Tool Calling Demo - Shows Llama Stack agent capabilities")
+    parser = argparse.ArgumentParser(
+        description="Agent Tool Calling Demo - Llama Stack responses API"
+    )
     parser.add_argument(
         "--query",
-        default="How does solar energy compare to other renewable energy sources in terms of efficiency and cost?",
+        default="How does solar energy compare to other renewable energy sources?",
         help="Query to ask the agent",
     )
-    parser.add_argument("--server", default="http://localhost:8321", help="Llama Stack server URL")
+    parser.add_argument(
+        "--server",
+        default="http://localhost:8321",
+        help="Llama Stack server URL",
+    )
 
     args = parser.parse_args()
-
-    # Run the demo
-    demo = AgentToolCallingDemo(base_url=args.server)
-    demo.run_demo(args.query)
+    run_demo(args.server, args.query)
 
 
 if __name__ == "__main__":

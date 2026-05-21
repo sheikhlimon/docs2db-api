@@ -96,6 +96,9 @@ def install_llama_stack(target_path):
             "sqlalchemy",
             "greenlet",
             "faiss-cpu",
+            "chardet",
+            "pypdf",
+            "tiktoken",
             "ollama",
         ],
         cwd=target_path,
@@ -146,6 +149,7 @@ def setup_docs2db_rag_provider(target_path):
         "container_image": None,
         "module": "docs2db_api.rag.llama_stack",
         "pip_packages": [
+            "llama-stack-api",
             "psycopg2-binary",
             "transformers",
             "torch",
@@ -185,15 +189,14 @@ def create_distribution_config(target_path):
         "image_name": "docs2db-rag-demo",
         "external_providers_dir": str(providers_dir.parent.parent),
         "apis": [
-            "agents",
             "batches",
             "datasetio",
             "eval",
             "files",
             "inference",
+            "responses",
             "safety",
             "scoring",
-            "telemetry",
             "tool_runtime",
             "vector_io",
         ],
@@ -204,41 +207,28 @@ def create_distribution_config(target_path):
                     "provider_type": "remote::ollama",
                     "config": {"url": "${env.OLLAMA_URL:=http://localhost:11434}"},
                 },
-                {
-                    "provider_id": "openai",
-                    "provider_type": "remote::openai",
-                    "config": {
-                        "api_key": "${env.OPENAI_API_KEY:=}",
-                        "base_url": "${env.OPENAI_BASE_URL:=https://api.openai.com/v1}",
-                    },
-                },
-                {
-                    "provider_id": "anthropic",
-                    "provider_type": "remote::anthropic",
-                    "config": {"api_key": "${env.ANTHROPIC_API_KEY:=}"},
-                },
             ],
             "vector_io": [
                 {
                     "provider_id": "faiss",
                     "provider_type": "inline::faiss",
                     "config": {
-                        "kvstore": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "faiss_store.db"),
+                        "persistence": {
+                            "namespace": "vector_io::faiss",
+                            "backend": "kv_default",
                         }
                     },
                 }
             ],
             "files": [
                 {
-                    "provider_id": "meta-reference-files",
+                    "provider_id": "builtin-files",
                     "provider_type": "inline::localfs",
                     "config": {
                         "storage_dir": str(data_dir / "files"),
                         "metadata_store": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "files_metadata.db"),
+                            "table_name": "files_metadata",
+                            "backend": "sql_default",
                         },
                     },
                 }
@@ -250,42 +240,34 @@ def create_distribution_config(target_path):
                     "config": {"excluded_categories": []},
                 }
             ],
-            "agents": [
+            "responses": [
                 {
-                    "provider_id": "meta-reference",
-                    "provider_type": "inline::meta-reference",
+                    "provider_id": "builtin",
+                    "provider_type": "inline::builtin",
                     "config": {
-                        "persistence_store": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "agents_store.db"),
+                        "persistence": {
+                            "agent_state": {
+                                "namespace": "agents",
+                                "backend": "kv_default",
+                            },
+                            "responses": {
+                                "table_name": "responses",
+                                "backend": "sql_default",
+                                "max_write_queue_size": 10000,
+                                "num_writers": 4,
+                            },
                         },
-                        "responses_store": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "responses_store.db"),
-                        },
-                    },
-                }
-            ],
-            "telemetry": [
-                {
-                    "provider_id": "meta-reference",
-                    "provider_type": "inline::meta-reference",
-                    "config": {
-                        "service_name": "${env.OTEL_SERVICE_NAME:=docs2db-rag-demo}",
-                        "sinks": "${env.TELEMETRY_SINKS:=console,sqlite}",
-                        "sqlite_db_path": str(data_dir / "trace_store.db"),
-                        "otel_exporter_otlp_endpoint": "${env.OTEL_EXPORTER_OTLP_ENDPOINT:=}",
                     },
                 }
             ],
             "eval": [
                 {
-                    "provider_id": "meta-reference",
-                    "provider_type": "inline::meta-reference",
+                    "provider_id": "builtin",
+                    "provider_type": "inline::builtin",
                     "config": {
                         "kvstore": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "meta_reference_eval.db"),
+                            "namespace": "eval",
+                            "backend": "kv_default",
                         }
                     },
                 }
@@ -296,8 +278,8 @@ def create_distribution_config(target_path):
                     "provider_type": "inline::localfs",
                     "config": {
                         "kvstore": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "localfs_datasetio.db"),
+                            "namespace": "datasetio::localfs",
+                            "backend": "kv_default",
                         }
                     },
                 }
@@ -313,7 +295,6 @@ def create_distribution_config(target_path):
                         "max_chunks": "${env.DOCS2DB_RAG_MAX_CHUNKS:=5}",
                         "max_tokens_in_context": "${env.DOCS2DB_RAG_MAX_TOKENS:=4096}",
                         "enable_question_refinement": "${env.DOCS2DB_RAG_ENABLE_REFINEMENT:=true}",
-                        "enable_hybrid_search": "${env.DOCS2DB_RAG_ENABLE_HYBRID:=true}",
                     },
                 }
             ],
@@ -323,8 +304,8 @@ def create_distribution_config(target_path):
                     "provider_type": "inline::reference",
                     "config": {
                         "kvstore": {
-                            "type": "sqlite",
-                            "db_path": str(data_dir / "batches_store.db"),
+                            "namespace": "batches",
+                            "backend": "kv_default",
                         }
                     },
                 }
@@ -403,7 +384,6 @@ def main():
         "uv", "run", "llama", "stack", "run",
         str(dist_file),
         "--port", "8321",
-        "--image-type", "venv"
     ]
 
     try:

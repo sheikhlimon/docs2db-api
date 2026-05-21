@@ -69,23 +69,13 @@ class Docs2DBRAGConfig:
     enable_question_refinement: bool = True
 
 
-# ToolParameter is a local helper for constructing ToolDef parameter lists —
-# not part of the llama_stack package.
-class ToolParameter:
-    def __init__(self, name, parameter_type, description, required=True, default=None):
-        self.name = name
-        self.parameter_type = parameter_type
-        self.description = description
-        self.required = required
-        self.default = default
-
-
-# Try to import Llama Stack interfaces
+# Try to import Llama Stack interfaces (0.7.x+)
 try:
-    from llama_stack.apis.tools import ToolInvocationResult  # type: ignore[attr-defined]
-    from llama_stack.apis.tools import ToolRuntime  # type: ignore[attr-defined]
-    from llama_stack.apis.tools.tools import ListToolDefsResponse  # type: ignore[attr-defined, assignment]
-    from llama_stack.apis.tools.tools import ToolDef  # type: ignore[attr-defined, assignment]
+    from llama_stack_api import ListToolDefsResponse
+    from llama_stack_api import ToolDef
+    from llama_stack_api import ToolInvocationResult
+    from llama_stack_api import ToolRuntime
+    from llama_stack_api import URL
 
     LLAMA_STACK_AVAILABLE = True
 except ImportError:
@@ -103,14 +93,18 @@ except ImportError:
             self.metadata = metadata
 
     class ToolDef:
-        def __init__(self, name, description, parameters):
+        def __init__(self, name, description, input_schema=None):
             self.name = name
             self.description = description
-            self.parameters = parameters
+            self.input_schema = input_schema
 
     class ListToolDefsResponse:
         def __init__(self, data):
             self.data = data
+
+    class URL:
+        def __init__(self, uri=""):
+            self.uri = uri
 
 
 class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
@@ -172,57 +166,43 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
             raise e
 
     async def list_runtime_tools(
-        self, tool_group_id: str | None = None, mcp_endpoint: str | None = None
+        self,
+        tool_group_id: str | None = None,
+        mcp_endpoint: "URL | None" = None,
+        authorization: str | None = None,
     ) -> ListToolDefsResponse:
-        """
-        List all available runtime tools provided by this adapter.
-
-        Returns:
-            ListToolDefsResponse containing RAG tool definitions
-        """
-        # Document search tool parameters
-        search_params = [
-            ToolParameter(
-                name="query",
-                parameter_type="string",
-                description="The search query or question",
-                required=True,
-            ),
-            ToolParameter(
-                name="model_name",
-                parameter_type="string",
-                description=f"Embedding model to use (default: {self.config.model_name})",
-                required=False,
-                default=self.config.model_name,
-            ),
-            ToolParameter(
-                name="max_chunks",
-                parameter_type="integer",
-                description="Maximum number of document chunks to retrieve",
-                required=False,
-                default=self.config.max_chunks,
-            ),
-            ToolParameter(
-                name="similarity_threshold",
-                parameter_type="number",
-                description="Minimum similarity threshold (0.0-1.0)",
-                required=False,
-                default=self.config.similarity_threshold,
-            ),
-            ToolParameter(
-                name="enable_question_refinement",
-                parameter_type="boolean",
-                description="Enable question refinement for better retrieval",
-                required=False,
-                default=self.config.enable_question_refinement,
-            ),
-        ]
+        search_schema = {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search query or question",
+                },
+                "model_name": {
+                    "type": "string",
+                    "description": f"Embedding model to use (default: {self.config.model_name})",
+                },
+                "max_chunks": {
+                    "type": "integer",
+                    "description": "Maximum number of document chunks to retrieve",
+                },
+                "similarity_threshold": {
+                    "type": "number",
+                    "description": "Minimum similarity threshold (0.0-1.0)",
+                },
+                "enable_question_refinement": {
+                    "type": "boolean",
+                    "description": "Enable question refinement for better retrieval",
+                },
+            },
+            "required": ["query"],
+        }
 
         tools = [
             ToolDef(
                 name="search_documents",
                 description="Search RHEL knowledge base using advanced RAG techniques. Returns relevant document chunks with similarity scores.",  # noqa: E501
-                parameters=search_params,
+                input_schema=search_schema,
             ),
         ]
 
@@ -239,17 +219,12 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
         # For inline providers, toolgroups are registered automatically
         pass
 
-    async def invoke_tool(self, tool_name: str, kwargs: dict[str, Any]) -> ToolInvocationResult:
-        """
-        Invoke a RAG tool with given arguments
-
-        Args:
-            tool_name: Name of the tool ("search_documents")
-            kwargs: Tool arguments including query, model_name, etc.
-
-        Returns:
-            ToolInvocationResult with RAG response and metadata
-        """
+    async def invoke_tool(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        authorization: str | None = None,
+    ) -> ToolInvocationResult:
         try:
             # Ensure RAG engine is initialized
             await self._initialize_rag_engine()
