@@ -30,6 +30,7 @@ from docs2db_api.database import DatabaseManager
 from docs2db_api.database import get_db_config
 from docs2db_api.embeddings import EMBEDDING_CONFIGS
 from docs2db_api.embeddings import GraniteEmbeddingProvider
+from docs2db_api.exceptions import ConfigurationError
 from docs2db_api.reranker import get_reranker
 
 
@@ -397,14 +398,18 @@ class UniversalRAGEngine:
         # Initialize embedding provider
         self.embedding_provider = self._get_embedding_provider()
 
-        # TODO(RSPEED-3062): Replace asserts with if/raise RuntimeError
-        assert self.config.model_name is not None, "model_name must be set after start()"  # noqa: S101
-        assert self.config.similarity_threshold is not None, "similarity_threshold must be set"  # noqa: S101
-        assert self.config.max_chunks is not None, "max_chunks must be set"  # noqa: S101
-        assert self.config.max_tokens_in_context is not None, "max_tokens_in_context must be set"  # noqa: S101
-        assert self.config.enable_question_refinement is not None, "enable_question_refinement must be set"  # noqa: S101
-        assert self.config.enable_reranking is not None, "enable_reranking must be set"  # noqa: S101
-        assert self.config.refinement_questions_count is not None, "refinement_questions_count must be set"  # noqa: S101
+        required_fields = [
+            "model_name",
+            "similarity_threshold",
+            "max_chunks",
+            "max_tokens_in_context",
+            "enable_question_refinement",
+            "enable_reranking",
+            "refinement_questions_count",
+        ]
+        for field in required_fields:
+            if getattr(self.config, field) is None:
+                raise ConfigurationError(f"{field} must be set after start()")
 
         # Warm up cross-encoder reranker if enabled
         if self.config.enable_reranking:
@@ -426,7 +431,8 @@ class UniversalRAGEngine:
         db_settings: dict[str, bool | int | float | None] = {}
         db_refinement_prompt: str | None = None
 
-        assert self.db_manager is not None, "db_manager must be initialized"  # TODO(RSPEED-3062)  # noqa: S101
+        if self.db_manager is None:
+            raise RuntimeError("db_manager must be initialized")
 
         try:
             async with await self.db_manager.get_direct_connection() as conn:
@@ -538,13 +544,14 @@ class UniversalRAGEngine:
 
     def _get_embedding_provider(self):
         """Get the appropriate embedding provider for the configured model"""
-        # TODO(RSPEED-3062): Replace asserts with if/raise
-        assert self.model_config is not None, "model_config must be set before calling this method"  # noqa: S101
+        if self.model_config is None:
+            raise RuntimeError("model_config must be set before calling this method")
 
         provider_cls = self.model_config["cls"]
 
         if provider_cls == GraniteEmbeddingProvider:
-            assert self.config.model_name is not None  # Set by start()  # TODO(RSPEED-3062)  # noqa: S101
+            if self.config.model_name is None:
+                raise RuntimeError("model_name must be set by start()")
             return GraniteEmbeddingProvider(
                 model_name=self.config.model_name,
                 config=self.model_config,
@@ -574,11 +581,11 @@ class UniversalRAGEngine:
         if not self._started:
             raise RuntimeError("RAG engine not initialized. Call await engine.start() first.")
 
-        # TODO(RSPEED-3062): Replace asserts with cast() — guaranteed set after start()
-        assert self.db_manager is not None  # noqa: S101
-        assert self.embedding_provider is not None  # noqa: S101
-        assert self.model_config is not None  # noqa: S101
-        assert self.config.model_name is not None  # noqa: S101
+        # Guaranteed set after start() — guard for type narrowing
+        if self.db_manager is None or self.embedding_provider is None:
+            raise RuntimeError("Engine must be started first")
+        if self.model_config is None or self.config.model_name is None:
+            raise RuntimeError("Engine configuration incomplete")
 
         logger.info(f"Processing RAG query: {query[:100]}...")
 
@@ -837,7 +844,8 @@ class UniversalRAGEngine:
 
     async def _generate_query_embeddings(self, query_text: str) -> list[float]:
         """Generate embeddings for the query text"""
-        assert self.embedding_provider is not None, "Engine must be started first"  # TODO(RSPEED-3062)  # noqa: S101
+        if self.embedding_provider is None:
+            raise RuntimeError("Engine must be started first")
 
         try:
             # Handle both single queries and refined questions
@@ -874,15 +882,15 @@ class UniversalRAGEngine:
         self, query_embedding: list[float], config: RAGConfig, query_text: str
     ) -> list[dict[str, Any]]:
         """Retrieve similar documents from the database using hybrid search"""
-        # TODO(RSPEED-3062): Replace asserts with if/raise RuntimeError
-        assert self.db_manager is not None, "Engine must be started first"  # noqa: S101
-        assert config.model_name is not None, "Model name must be set"  # noqa: S101
+        if self.db_manager is None:
+            raise RuntimeError("Engine must be started first")
+        if config.model_name is None:
+            raise ConfigurationError("Model name must be set")
 
         try:
             # Always use hybrid search (opinionated choice)
-            assert (  # noqa: S101
-                config.max_chunks is not None and config.similarity_threshold is not None
-            )  # Set by start()  # TODO(RSPEED-3062)
+            if config.max_chunks is None or config.similarity_threshold is None:
+                raise ConfigurationError("max_chunks and similarity_threshold must be set")
             hybrid_chunks = await self.db_manager.search_hybrid(
                 query_embedding=query_embedding,
                 query_text=query_text,
@@ -979,7 +987,8 @@ class UniversalRAGEngine:
         total_tokens = 0
         final_docs = []
 
-        assert config.max_tokens_in_context is not None  # Set by start()  # TODO(RSPEED-3062)  # noqa: S101
+        if config.max_tokens_in_context is None:
+            raise ConfigurationError("max_tokens_in_context must be set")
         for doc in filtered:
             # Rough token estimation (1 token ≈ 4 characters)
             doc_tokens = len(doc["text"]) // 4
