@@ -14,8 +14,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
-- Narrowed broad `except Exception` clauses in `database.py` and `engine.py` to specific types
-- Replaced `assert` statements in `engine.py` with proper guards
 
 ### Removed
 - Removed LlamaStack adapter (`llama_stack.py`) and demos — use [docs2db-mcp-server](https://github.com/rhel-lightspeed/docs2db-mcp-server) for MCP-based tool integration with any LLM framework
