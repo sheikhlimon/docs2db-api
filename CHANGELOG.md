@@ -13,7 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test-ci` Makefile target for CI-safe test runs
 
 ### Changed
+- LlamaStack is now an optional dependency — install with `pip install docs2db-api[llama-stack]`
 - Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
+- Narrowed broad `except Exception` clauses in `database.py` to specific types
+- Replaced `assert` statements in `engine.py` and `llama_stack.py` with proper guards
+
+### Fixed
+- Fixed missing `start()` call in LlamaStack adapter (engine was unusable without it)
+- Fixed `ToolParameter` undefined when `llama-stack` is installed
+
+### Removed
+- Removed `search_and_generate` stub from LlamaStack adapter (only `search_documents` is exposed)
 
 ## [0.3.1] - 2026-01-21
 

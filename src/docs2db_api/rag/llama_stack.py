@@ -244,7 +244,7 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
         Invoke a RAG tool with given arguments
 
         Args:
-            tool_name: Name of the tool ("search_documents" or "search_and_generate")
+            tool_name: Name of the tool ("search_documents")
             kwargs: Tool arguments including query, model_name, etc.
 
         Returns:

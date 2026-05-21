@@ -84,11 +84,15 @@ asyncio.run(main())
 
 ## LlamaStack Integration
 
-Docs2DB-API includes a native LlamaStack tool provider for agent-based RAG. See the complete demo with setup scripts and examples:
+Docs2DB-API includes an optional LlamaStack tool provider for agent-based RAG. Install with:
+
+```bash
+uv add "docs2db-api[llama-stack]"
+```
+
+See the complete demo with setup scripts and examples:
 
 **[📁 demos/llama-stack/](demos/llama-stack/)** - LlamaStack RAG tool provider with agent demos
-
-(this needs to be adjusted to work from pypi)
 
 ## Configuration
 

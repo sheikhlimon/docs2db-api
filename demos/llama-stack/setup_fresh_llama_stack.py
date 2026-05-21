@@ -463,7 +463,7 @@ def main():
         print()
         print("✅ Configured Features:")
         print("  • Llama Stack server with Ollama integration")
-        print("  • Docs2DB RAG with search_documents and search_and_generate tools")
+        print("  • Docs2DB RAG with search_documents tool")
         print("  • RAG Features: Similarity Post Processing, Hybrid Search, Query Refinement")
         print("  • Tool Group: docs2db::rag available for agents")
         print()
