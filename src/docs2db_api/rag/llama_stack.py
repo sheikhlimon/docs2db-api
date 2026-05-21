@@ -69,6 +69,17 @@ class Docs2DBRAGConfig:
     enable_question_refinement: bool = True
 
 
+# ToolParameter is a local helper for constructing ToolDef parameter lists —
+# not part of the llama_stack package.
+class ToolParameter:
+    def __init__(self, name, parameter_type, description, required=True, default=None):
+        self.name = name
+        self.parameter_type = parameter_type
+        self.description = description
+        self.required = required
+        self.default = default
+
+
 # Try to import Llama Stack interfaces
 try:
     from llama_stack.apis.tools import ToolInvocationResult  # type: ignore[attr-defined]
@@ -81,7 +92,6 @@ except ImportError:
     logger.warning("Llama Stack not available - adapter will not function")
     LLAMA_STACK_AVAILABLE = False
 
-    # Create dummy classes for development
     class ToolRuntime:
         pass
 
@@ -97,14 +107,6 @@ except ImportError:
             self.name = name
             self.description = description
             self.parameters = parameters
-
-    class ToolParameter:
-        def __init__(self, name, parameter_type, description, required=True, default=None):
-            self.name = name
-            self.parameter_type = parameter_type
-            self.description = description
-            self.required = required
-            self.default = default
 
     class ListToolDefsResponse:
         def __init__(self, data):
@@ -157,6 +159,10 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
             # Initialize the RAG engine with LLM client
             self.rag_engine = UniversalRAGEngine(rag_config, llm_client)
             logger.info("✅ Universal RAG Engine created")
+
+            # Start the engine (initializes DB connection and model detection)
+            await self.rag_engine.start()
+            logger.info("✅ RAG engine started")
 
             self._initialized = True
             logger.info("✅ RAG engine initialized successfully")
@@ -370,8 +376,8 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
         logger.info(f"🚀 Processing search and generate: {query[:100]}... (model: {model_name})")
 
         try:
-            # For now, fall back to document search since we don't have LLM integration yet
-            # TODO: Implement full search_and_generate when LLM client is available
+            # Falls back to search_documents — full RAG generation would require
+            # wiring the LLM client through to produce a synthesized answer.
             if self.rag_engine is None:
                 raise RuntimeError("RAG engine must be initialized")
             result = await self.rag_engine.search_documents(
