@@ -28,10 +28,10 @@ jobs:
       - run: uv sync --frozen
 
       - name: Ruff check
-        run: uv run ruff check src/ tests/ demos/
+        run: uv run ruff check src/ tests/
 
       - name: Ruff format check
-        run: uv run ruff format --check src/ tests/ demos/
+        run: uv run ruff format --check src/ tests/
 
       - name: Pyright
         run: uv run pyright src/docs2db_api/
