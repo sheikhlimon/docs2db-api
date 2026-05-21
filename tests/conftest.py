@@ -30,20 +30,6 @@ def mock_embedding_provider():
 
 
 @pytest.fixture
-def mock_llm_client():
-    """Mock LLM client for query refinement testing."""
-    client = MagicMock()
-    client.refine_query = AsyncMock(
-        return_value=[
-            "What is X?",
-            "How does X work?",
-            "Where is X used?",
-        ]
-    )
-    return client
-
-
-@pytest.fixture
 def sample_rag_settings():
     """Sample RAG settings from database."""
     return {

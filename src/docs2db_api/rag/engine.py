@@ -314,6 +314,13 @@ class UniversalRAGEngine:
         self.model_config: dict[str, Any] | None = None
         self._started = False
 
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, *exc_info):
+        await self.close()
+
     async def start(self) -> None:
         """Initialize database connection and auto-detect model if needed.
 
@@ -847,19 +854,11 @@ class UniversalRAGEngine:
 
         try:
             # Handle both single queries and refined questions
-            if isinstance(query_text, str) and ("1." in query_text or "2." in query_text):
-                # Extract individual questions from numbered list
-                lines = query_text.strip().split("\n")
-                questions = []
-                for line in lines:
-                    line = line.strip()
-                    if line and (line[0].isdigit() or line.startswith("•")):
-                        # Remove numbering and extract question
-                        question = line.split(".", 1)[-1].strip()
-                        if question:
-                            questions.append(question)
+            if isinstance(query_text, str) and "\n" in query_text:
+                # Multiple questions (newline-separated from refinement)
+                questions = [q.strip() for q in query_text.strip().split("\n") if q.strip()]
 
-                if questions:
+                if len(questions) > 1:
                     # Generate embeddings for all questions and average them
                     all_embeddings = self.embedding_provider.generate_embeddings(questions)
                     # Average the embeddings
@@ -1049,9 +1048,8 @@ async def search_documents(query: str, model_name: str | None = None, **options)
         **{k: v for k, v in options.items() if hasattr(RAGConfig, k)},
     )
 
-    engine = UniversalRAGEngine(config)
-    await engine.start()
-    return await engine.search_documents(query, **options)
+    async with UniversalRAGEngine(config) as engine:
+        return await engine.search_documents(query, **options)
 
 
 async def log_search(query, model_name, max_chunks, similarity_threshold):

@@ -239,20 +239,20 @@ def query(
         )
 
         async def run_query():
-            engine = UniversalRAGEngine(config, refinement_prompt=refinement_prompt)
-            await engine.start()
+            async with UniversalRAGEngine(config, refinement_prompt=refinement_prompt) as engine:
+                if output_format == OutputFormat.log:
+                    model_info = (
+                        f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
+                    )
+                    logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
 
-            if output_format == OutputFormat.log:
-                model_info = f"model={engine.config.model_name}" if engine.config.model_name else "model=auto-detected"
-                logger.info("Searching", query=query_text, model_info=model_info, threshold=threshold, limit=limit)
+                result = await engine.search_documents(query_text)
 
-            result = await engine.search_documents(query_text)
-
-            # Output based on format
-            if output_format == OutputFormat.text:
-                _output_text(result, max_chars)
-            else:
-                _output_log(result)
+                # Output based on format
+                if output_format == OutputFormat.text:
+                    _output_text(result, max_chars)
+                else:
+                    _output_log(result)
 
         asyncio.run(run_query())
 
