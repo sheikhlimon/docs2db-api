@@ -218,20 +218,11 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
             ),
         ]
 
-        # Response generation tool parameters (same as search + response generation)
-        generate_params = search_params.copy()
-
-        # Create tool definitions
         tools = [
             ToolDef(
                 name="search_documents",
                 description="Search RHEL knowledge base using advanced RAG techniques. Returns relevant document chunks with similarity scores.",  # noqa: E501
                 parameters=search_params,
-            ),
-            ToolDef(
-                name="search_and_generate",
-                description="Search RHEL knowledge base and generate a comprehensive response using retrieved documents.",  # noqa: E501
-                parameters=generate_params,
             ),
         ]
 
@@ -265,8 +256,6 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
 
             if tool_name == "search_documents":
                 return await self._handle_search_documents(kwargs)
-            elif tool_name == "search_and_generate":
-                return await self._handle_search_and_generate(kwargs)
             else:
                 return ToolInvocationResult(
                     content=None,
@@ -355,81 +344,6 @@ class Docs2DBRAGAdapter(ToolRuntime):  # type: ignore[misc]
                 error_code=500,
             )
 
-    async def _handle_search_and_generate(self, kwargs: dict[str, Any]) -> ToolInvocationResult:
-        """Handle search + response generation requests"""
-
-        # Extract and validate arguments
-        query = kwargs.get("query", "")
-        if not query:
-            return ToolInvocationResult(
-                content=None,
-                error_message="Query parameter is required",
-                error_code=400,
-            )
-
-        # Extract optional parameters
-        model_name = kwargs.get("model_name", self.config.model_name)
-        max_chunks = kwargs.get("max_chunks", self.config.max_chunks)
-        similarity_threshold = kwargs.get("similarity_threshold", self.config.similarity_threshold)
-        enable_question_refinement = kwargs.get("enable_question_refinement", self.config.enable_question_refinement)
-
-        logger.info(f"🚀 Processing search and generate: {query[:100]}... (model: {model_name})")
-
-        try:
-            # Falls back to search_documents — full RAG generation would require
-            # wiring the LLM client through to produce a synthesized answer.
-            if self.rag_engine is None:
-                raise RuntimeError("RAG engine must be initialized")
-            result = await self.rag_engine.search_documents(
-                query,
-                model_name=model_name,
-                max_chunks=max_chunks,
-                similarity_threshold=similarity_threshold,
-                enable_question_refinement=enable_question_refinement,
-            )
-
-            # Create a summary response based on retrieved documents
-            if not result.documents:
-                response_content = "I couldn't find relevant information to answer your question."
-            else:
-                response_content = (
-                    f"Based on {len(result.documents)} relevant documents from the RHEL knowledge base:\n\n"
-                )
-
-                # Include top documents in response
-                for i, doc in enumerate(result.documents[:3], 1):  # Top 3 documents
-                    response_content += (
-                        f"Document {i}: {doc['text'][:300]}{'...' if len(doc['text']) > 300 else ''}\n\n"
-                    )
-
-                response_content += f"(Note: Full response generation requires LLM integration. Found {len(result.documents)} total relevant documents.)"  # noqa: E501
-
-            # Create metadata
-            metadata = result.metadata or {}
-            metadata.update(
-                {
-                    "tool_name": "search_and_generate",
-                    "documents_count": len(result.documents),
-                    "query_original": query,
-                    "refined_questions": result.refined_questions,
-                    "generation_status": "fallback_to_search_only",
-                    "documents_used": len(result.documents),
-                }
-            )
-
-            logger.info(f"✅ Search and generate completed - {len(result.documents)} documents processed")
-
-            return ToolInvocationResult(content=response_content, metadata=metadata)
-
-        except Exception as e:
-            logger.error(f"❌ Search and generate failed: {e}")
-            return ToolInvocationResult(
-                content=None,
-                error_message=f"Search and generate failed: {str(e)}",
-                error_code=500,
-            )
-
-
 # Required function for inline providers
 async def get_provider_impl(config: Docs2DBRAGConfig, deps: dict[Any, Any]) -> Docs2DBRAGAdapter:
     """
@@ -454,15 +368,10 @@ async def test_provider():
 
     adapter = await get_provider_impl(config, {})
 
-    # Test document search
     search_kwargs = {"query": "How do I configure SSH on RHEL?", "max_chunks": 3}
 
     search_response = await adapter.invoke_tool("search_documents", search_kwargs)
     logger.info("Search Response", content_preview=(search_response.content or "")[:200])
-
-    # Test search and generate
-    generate_response = await adapter.invoke_tool("search_and_generate", search_kwargs)
-    logger.info("Generate Response", content_preview=(generate_response.content or "")[:200])
 
 
 if __name__ == "__main__":
