@@ -72,7 +72,7 @@ volumes:
             f.write(default_compose)
         logger.info(f"Created postgres-compose.yml in {compose_file.parent}")
         return compose_file
-    except Exception as e:
+    except OSError as e:
         raise Docs2DBException(
             f"Could not create postgres-compose.yml: {e}. Please create one manually or ensure write permissions."
         ) from e

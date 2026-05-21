@@ -1,27 +1,21 @@
-.PHONY: test lint format clean help
+.PHONY: test test-ci lint clean help
 
 help:
-	@echo "Available commands:"
-	@echo "  make test    - Run tests with pytest"
-	@echo "  make lint    - Run linters (ruff, pyright)"
-	@echo "  make format  - Format code with ruff"
-	@echo "  make clean   - Remove generated files"
+	@echo "Available targets:"
+	@echo "  test    - Run all tests"
+	@echo "  test-ci - Run CI tests (excluding no_ci marked tests)"
+	@echo "  lint    - Run all pre-commit checks (ruff, pyright, etc.)"
+	@echo "  clean   - Remove generated files"
 
 test:
 	uv run pytest
 
-lint:
-	uv run ruff check .
-	uv run pyright
+test-ci:
+	uv run pytest -m "not no_ci"
 
-format:
-	uv run ruff format .
-	uv run ruff check --fix .
+lint:
+	uv run pre-commit run --all-files
 
 clean:
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
-	rm -rf htmlcov coverage.xml .coverage
+	rm -rf .pytest_cache .ruff_cache htmlcov .coverage coverage.xml
 

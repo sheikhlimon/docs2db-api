@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Pre-commit hooks (ruff, ruff-format, pyright, gitleaks)
+- CI workflow for lint, format, type checking, and tests
+- `test-ci` Makefile target for CI-safe test runs
+
+### Changed
+- Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
+
 ## [0.3.1] - 2026-01-21
 
 ### Changed
