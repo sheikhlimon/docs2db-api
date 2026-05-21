@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
 
+### Removed
+- Removed LlamaStack adapter (`llama_stack.py`) and demos — use [docs2db-mcp-server](https://github.com/rhel-lightspeed/docs2db-mcp-server) for MCP-based tool integration with any LLM framework
+- Removed `llama-stack` optional dependency
+
 ## [0.3.1] - 2026-01-21
 
 ### Changed
