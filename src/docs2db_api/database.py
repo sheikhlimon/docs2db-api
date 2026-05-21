@@ -220,9 +220,7 @@ class DatabaseManager:
                     return None
 
                 if len(row) < 7:
-                    logger.error(
-                        f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}"
-                    )
+                    logger.error(f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}")
                     return None
 
                 return {

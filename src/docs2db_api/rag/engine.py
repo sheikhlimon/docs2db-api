@@ -448,9 +448,7 @@ class UniversalRAGEngine:
 
                 if row:
                     if len(row) < 7:
-                        logger.error(
-                            f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}"
-                        )
+                        logger.error(f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}")
                     else:
                         db_refinement_prompt = row[0]
                         db_settings = {
