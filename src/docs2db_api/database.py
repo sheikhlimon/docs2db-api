@@ -49,47 +49,38 @@ def get_db_config() -> dict[str, str]:
     # If DOCS2DB_DB_URL is set, parse it and override individual settings
     if settings.database.url:
         database_url = settings.database.url
-        try:
-            # Parse postgresql://user:password@host:port/database
-            # Support both postgresql:// and postgres:// schemes
-            if database_url.startswith(("postgresql://", "postgres://")):
-                # Remove scheme
-                url_without_scheme = database_url.split("://", 1)[1]
+        if database_url.startswith(("postgresql://", "postgres://")):
+            # Remove scheme
+            url_without_scheme = database_url.split("://", 1)[1]
 
-                # Split into credentials@location and database
-                if "@" in url_without_scheme:
-                    credentials, location = url_without_scheme.split("@", 1)
+            # Split into credentials@location and database
+            if "@" in url_without_scheme:
+                credentials, location = url_without_scheme.split("@", 1)
 
-                    # Parse credentials
-                    if ":" in credentials:
-                        config["user"], config["password"] = credentials.split(":", 1)
-                    else:
-                        config["user"] = credentials
-
-                    # Parse location and database
-                    if "/" in location:
-                        host_port, config["database"] = location.split("/", 1)
-                    else:
-                        host_port = location
-
-                    # Parse host and port
-                    if ":" in host_port:
-                        config["host"], config["port"] = host_port.split(":", 1)
-                    else:
-                        config["host"] = host_port
+                # Parse credentials
+                if ":" in credentials:
+                    config["user"], config["password"] = credentials.split(":", 1)
                 else:
-                    raise ConfigurationError(f"Invalid DOCS2DB_DB_URL format (missing @): {database_url}")
+                    config["user"] = credentials
+
+                # Parse location and database
+                if "/" in location:
+                    host_port, config["database"] = location.split("/", 1)
+                else:
+                    host_port = location
+
+                # Parse host and port
+                if ":" in host_port:
+                    config["host"], config["port"] = host_port.split(":", 1)
+                else:
+                    config["host"] = host_port
             else:
-                raise ConfigurationError(
-                    f"Invalid DOCS2DB_DB_URL scheme. Expected postgresql:// or postgres://, "
-                    f"got: {database_url.split('://')[0] if '://' in database_url else database_url}"
-                )
-        except ConfigurationError:
-            raise
-        except Exception as e:
+                raise ConfigurationError(f"Invalid DOCS2DB_DB_URL format (missing @): {database_url}")
+        else:
             raise ConfigurationError(
-                f"Failed to parse DOCS2DB_DB_URL: {e}. Expected format: postgresql://user:password@host:port/database"
-            ) from e
+                f"Invalid DOCS2DB_DB_URL scheme. Expected postgresql:// or postgres://, "
+                f"got: {database_url.split('://')[0] if '://' in database_url else database_url}"
+            )
 
     # Check for postgres-compose.yml (lowest priority, only if using defaults)
     compose_file = Path.cwd() / "postgres-compose.yml"
@@ -117,8 +108,7 @@ def get_db_config() -> dict[str, str]:
                         host_port = port_mapping.split(":")[0]
                         config["port"] = host_port
                         break
-        except Exception as e:
-            # If compose file exists but can't be parsed, warn but continue
+        except yaml.YAMLError as e:
             logger.warning(f"Could not parse postgres-compose.yml: {e}")
 
     return config
@@ -229,6 +219,12 @@ class DatabaseManager:
                 if row is None:
                     return None
 
+                if len(row) < 7:
+                    logger.error(
+                        f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}"
+                    )
+                    return None
+
                 return {
                     "refinement_prompt": row[0],
                     "enable_refinement": row[1],
@@ -238,7 +234,7 @@ class DatabaseManager:
                     "max_tokens_in_context": row[5],
                     "refinement_questions_count": row[6],
                 }
-            except Exception as e:  # TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
+            except psycopg.Error as e:
                 logger.warning(f"Could not retrieve RAG settings: {e}")
                 return None
 
@@ -627,7 +623,7 @@ async def check_database_status(
                 _pg_version, _current_time = row
                 logger.info("Database connection successful")
 
-    except Exception as conn_error:
+    except psycopg.Error as conn_error:
         # Handle server connectivity errors
         error_msg = str(conn_error).lower()
         if (
@@ -655,7 +651,7 @@ async def check_database_status(
         async with await db_manager.get_direct_connection() as conn:
             # Test that we can actually query the target database
             await conn.execute("SELECT 1")
-    except Exception as conn_error:
+    except psycopg.Error as conn_error:
         # If we get here, PostgreSQL is running but our target database doesn't exist
         logger.error("Database does not exist. Create database or check name")
         raise DatabaseError("Database does not exist") from conn_error
@@ -734,8 +730,7 @@ async def check_database_status(
                     f"  Models         : {metadata['embedding_models_count']}\n"
                     f"  Last modified  : {metadata['last_modified_at'].strftime('%Y-%m-%d %H:%M') if metadata['last_modified_at'] else 'Unknown'}"  # noqa: E501
                 )
-        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
-            # Schema metadata table doesn't exist yet
+        except psycopg.errors.UndefinedTable:
             pass
 
     # Display recent schema changes (last 5)
@@ -772,8 +767,7 @@ async def check_database_status(
                 logger.info("\nRecent Changes (last 5):")
                 for change_data in changes:
                     logger.info(db_manager.format_schema_change_display(change_data))
-        except Exception:  # noqa: S110 — TODO: RSPEED-3061 — narrow to psycopg.errors.UndefinedTable
-            # Schema changes table doesn't exist yet
+        except psycopg.errors.UndefinedTable:
             pass
 
     if stats["documents"] > 0:
@@ -858,7 +852,7 @@ async def _ensure_database_exists(host: str, port: int, db: str, user: str, pass
                 await conn.execute(create_db_query)
                 logger.info(f"Database '{db}' created successfully")
 
-    except Exception as e:
+    except psycopg.Error as e:
         logger.error(f"Failed to ensure database exists: {e}")
         raise DatabaseError(f"Could not create database '{db}': {e}") from e
 

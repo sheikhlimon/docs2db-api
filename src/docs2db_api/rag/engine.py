@@ -22,6 +22,7 @@ from typing import cast
 from typing import overload
 
 import httpx
+import psycopg
 import structlog
 
 from docs2db_api.config import settings
@@ -440,19 +441,24 @@ class UniversalRAGEngine:
                 row = await result.fetchone()
 
                 if row:
-                    db_refinement_prompt = row[0]
-                    db_settings = {
-                        "enable_refinement": bool(row[1]) if row[1] is not None else None,
-                        "enable_reranking": bool(row[2]) if row[2] is not None else None,
-                        "similarity_threshold": float(row[3]) if row[3] is not None else None,
-                        "max_chunks": int(row[4]) if row[4] is not None else None,
-                        "max_tokens_in_context": int(row[5]) if row[5] is not None else None,
-                        "refinement_questions_count": int(row[6]) if row[6] is not None else None,
-                    }
-                    logger.info("Loaded RAG settings from database")
+                    if len(row) < 7:
+                        logger.error(
+                            f"RAG settings row has unexpected shape: expected 7 columns, got {len(row)}"
+                        )
+                    else:
+                        db_refinement_prompt = row[0]
+                        db_settings = {
+                            "enable_refinement": bool(row[1]) if row[1] is not None else None,
+                            "enable_reranking": bool(row[2]) if row[2] is not None else None,
+                            "similarity_threshold": float(row[3]) if row[3] is not None else None,
+                            "max_chunks": int(row[4]) if row[4] is not None else None,
+                            "max_tokens_in_context": int(row[5]) if row[5] is not None else None,
+                            "refinement_questions_count": int(row[6]) if row[6] is not None else None,
+                        }
+                        logger.info("Loaded RAG settings from database")
                 else:
                     logger.info("No RAG settings found in database, using defaults")
-        except Exception as e:
+        except psycopg.Error as e:
             logger.warning(f"Could not load RAG settings from database: {e}. Using defaults.")
 
         # Apply hierarchy for each setting
@@ -906,7 +912,7 @@ class UniversalRAGEngine:
 
             return documents
 
-        except Exception as e:
+        except psycopg.Error as e:
             logger.error(f"Failed to retrieve similar documents: {e}")
             raise
 
