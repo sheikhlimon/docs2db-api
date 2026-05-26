@@ -279,19 +279,13 @@ class UniversalRAGEngine:
     - start() method initializes database connection and detects model
 
     Usage:
-        engine = UniversalRAGEngine(config=config, db_config=db_config)
-        await engine.start()
-        result = await engine.search_documents(query)
-
-        # Note: No cleanup needed for typical usage (database connections are
-        # per-request). Only call close() if you provided an llm_client that
-        # needs cleanup.
+        async with UniversalRAGEngine(config=config, db_config=db_config) as engine:
+            result = await engine.search_documents(query)
     """
 
     def __init__(
         self,
         config: RAGConfig | None = None,
-        llm_client=None,
         db_config: dict[str, str] | None = None,
         refinement_prompt: str | None = None,
     ):
@@ -299,12 +293,11 @@ class UniversalRAGEngine:
 
         Args:
             config: RAG configuration. If model_name is None, will auto-detect from database.
-            llm_client: Optional LLM client for question refinement.
             db_config: Database configuration dict. If None, will auto-detect.
             refinement_prompt: Custom prompt for query refinement. If None, uses default or database value.
         """
         self.config = config or RAGConfig()
-        self.llm_client = llm_client
+        self.llm_client = None
         self._db_config_dict = db_config
         self.refinement_prompt = refinement_prompt
 
@@ -631,9 +624,8 @@ class UniversalRAGEngine:
             if search_config.enable_question_refinement:
                 if not self.llm_client:
                     logger.warning(
-                        "⚠️  Question refinement is enabled but no llm_client provided. "
-                        "Skipping refinement. To enable refinement, pass an llm_client to UniversalRAGEngine() "
-                        "or set DOCS2DB_LLM_BASE_URL environment variable."
+                        "⚠️  Question refinement is enabled but LLM client could not be created. "
+                        "Skipping refinement. Set DOCS2DB_LLM_BASE_URL environment variable to enable."
                     )
                     logger.debug(
                         f"Config: enable_question_refinement={search_config.enable_question_refinement}, llm_client={self.llm_client}"  # noqa: E501

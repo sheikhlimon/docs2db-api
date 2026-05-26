@@ -161,6 +161,7 @@ def start_database(profile: str = "prod") -> bool:
 
     except subprocess.TimeoutExpired:
         logger.error("Database start timed out after 300 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start database: {e}")
         if e.stderr:
@@ -218,6 +219,7 @@ def stop_database(profile: str = "prod") -> bool:
 
     except subprocess.TimeoutExpired:
         logger.error("Database stop timed out after 60 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to stop database: {e}")
         if e.stderr:
