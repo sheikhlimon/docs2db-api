@@ -279,19 +279,13 @@ class UniversalRAGEngine:
     - start() method initializes database connection and detects model
 
     Usage:
-        engine = UniversalRAGEngine(config=config, db_config=db_config)
-        await engine.start()
-        result = await engine.search_documents(query)
-
-        # Note: No cleanup needed for typical usage (database connections are
-        # per-request). Only call close() if you provided an llm_client that
-        # needs cleanup.
+        async with UniversalRAGEngine(config=config, db_config=db_config) as engine:
+            result = await engine.search_documents(query)
     """
 
     def __init__(
         self,
         config: RAGConfig | None = None,
-        llm_client=None,
         db_config: dict[str, str] | None = None,
         refinement_prompt: str | None = None,
     ):
@@ -299,12 +293,11 @@ class UniversalRAGEngine:
 
         Args:
             config: RAG configuration. If model_name is None, will auto-detect from database.
-            llm_client: Optional LLM client for question refinement.
             db_config: Database configuration dict. If None, will auto-detect.
             refinement_prompt: Custom prompt for query refinement. If None, uses default or database value.
         """
         self.config = config or RAGConfig()
-        self.llm_client = llm_client
+        self.llm_client = None
         self._db_config_dict = db_config
         self.refinement_prompt = refinement_prompt
 
@@ -313,6 +306,13 @@ class UniversalRAGEngine:
         self.embedding_provider = None
         self.model_config: dict[str, Any] | None = None
         self._started = False
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, *exc_info):
+        await self.close()
 
     async def start(self) -> None:
         """Initialize database connection and auto-detect model if needed.
@@ -624,9 +624,8 @@ class UniversalRAGEngine:
             if search_config.enable_question_refinement:
                 if not self.llm_client:
                     logger.warning(
-                        "⚠️  Question refinement is enabled but no llm_client provided. "
-                        "Skipping refinement. To enable refinement, pass an llm_client to UniversalRAGEngine() "
-                        "or set DOCS2DB_LLM_BASE_URL environment variable."
+                        "⚠️  Question refinement is enabled but LLM client could not be created. "
+                        "Skipping refinement. Set DOCS2DB_LLM_BASE_URL environment variable to enable."
                     )
                     logger.debug(
                         f"Config: enable_question_refinement={search_config.enable_question_refinement}, llm_client={self.llm_client}"  # noqa: E501
@@ -847,19 +846,11 @@ class UniversalRAGEngine:
 
         try:
             # Handle both single queries and refined questions
-            if isinstance(query_text, str) and ("1." in query_text or "2." in query_text):
-                # Extract individual questions from numbered list
-                lines = query_text.strip().split("\n")
-                questions = []
-                for line in lines:
-                    line = line.strip()
-                    if line and (line[0].isdigit() or line.startswith("•")):
-                        # Remove numbering and extract question
-                        question = line.split(".", 1)[-1].strip()
-                        if question:
-                            questions.append(question)
+            if isinstance(query_text, str) and "\n" in query_text:
+                # Multiple questions (newline-separated from refinement)
+                questions = [q.strip() for q in query_text.strip().split("\n") if q.strip()]
 
-                if questions:
+                if len(questions) > 1:
                     # Generate embeddings for all questions and average them
                     all_embeddings = self.embedding_provider.generate_embeddings(questions)
                     # Average the embeddings
@@ -1049,9 +1040,8 @@ async def search_documents(query: str, model_name: str | None = None, **options)
         **{k: v for k, v in options.items() if hasattr(RAGConfig, k)},
     )
 
-    engine = UniversalRAGEngine(config)
-    await engine.start()
-    return await engine.search_documents(query, **options)
+    async with UniversalRAGEngine(config) as engine:
+        return await engine.search_documents(query, **options)
 
 
 async def log_search(query, model_name, max_chunks, similarity_threshold):

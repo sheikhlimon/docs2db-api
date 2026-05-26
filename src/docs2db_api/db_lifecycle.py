@@ -150,6 +150,7 @@ def start_database(profile: str = "prod") -> bool:
             capture_output=True,
             text=True,
             check=True,
+            timeout=300,
         )
 
         if result.stdout:
@@ -158,6 +159,9 @@ def start_database(profile: str = "prod") -> bool:
         logger.info("Database started successfully")
         return True
 
+    except subprocess.TimeoutExpired:
+        logger.error("Database start timed out after 300 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to start database: {e}")
         if e.stderr:
@@ -204,6 +208,7 @@ def stop_database(profile: str = "prod") -> bool:
             capture_output=True,
             text=True,
             check=True,
+            timeout=60,
         )
 
         if result.stdout:
@@ -212,6 +217,9 @@ def stop_database(profile: str = "prod") -> bool:
         logger.info("Database stopped successfully (data preserved)")
         return True
 
+    except subprocess.TimeoutExpired:
+        logger.error("Database stop timed out after 60 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to stop database: {e}")
         if e.stderr:
@@ -261,6 +269,7 @@ def destroy_database(profile: str = "prod") -> bool:
             cmd,
             capture_output=True,
             text=True,
+            timeout=30,
         )
 
         # Don't fail if volume doesn't exist
@@ -313,10 +322,14 @@ def get_database_logs(follow: bool = False) -> bool:
         cmd.append("db")
 
         # For logs, we want to show output directly to user
-        subprocess.run(cmd, check=True)  # noqa: S603 -- cmd is constructed from validated config values, not user input
+        # When following logs (-f), no timeout — user exits with Ctrl+C
+        subprocess.run(cmd, check=True, timeout=None if follow else 30)  # noqa: S603 -- cmd is constructed from validated config values, not user input
 
         return True
 
+    except subprocess.TimeoutExpired:
+        logger.error("Log retrieval timed out after 30 seconds")
+        return False
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to view logs: {e}")
         return False
