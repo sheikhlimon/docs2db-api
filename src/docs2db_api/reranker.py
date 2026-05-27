@@ -4,8 +4,6 @@ from typing import Any
 
 import structlog
 
-from sentence_transformers import CrossEncoder
-
 
 logger = structlog.get_logger(__name__)
 
@@ -33,6 +31,8 @@ class Reranker:
     def model(self):
         """Lazy load the model when first needed."""
         if self._model is None:
+            from sentence_transformers import CrossEncoder
+
             logger.info(f"Loading reranker model: {self.model_name}")
             self._model = CrossEncoder(self.model_name)
         return self._model

@@ -3,10 +3,6 @@
 from typing import Any
 
 import structlog
-import torch
-
-from transformers import AutoModel
-from transformers import AutoTokenizer
 
 from docs2db_api.config import settings
 
@@ -16,6 +12,8 @@ logger = structlog.get_logger(__name__)
 
 def get_optimal_device() -> str:
     """Detect and return the optimal device for embedding generation."""
+    import torch
+
     if torch.cuda.is_available():
         return "cuda"
     elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -58,6 +56,11 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
     def _get_model_and_tokenizer(self):
         """Get or create the Granite model and tokenizer."""
         if self._model is None or self._tokenizer is None:
+            import torch
+
+            from transformers import AutoModel
+            from transformers import AutoTokenizer
+
             # Set MPS memory limits to prevent memory leaks
             if self.device == "mps":
                 torch.mps.set_per_process_memory_fraction(0.4)  # Limit to 40% of memory per worker
@@ -86,6 +89,8 @@ class GraniteEmbeddingProvider(EmbeddingProvider):
 
     def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using Granite model with CLS pooling."""
+        import torch
+
         model, tokenizer = self._get_model_and_tokenizer()
 
         inputs = tokenizer(
