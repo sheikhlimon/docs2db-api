@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `test-ci` Makefile target for CI-safe test runs
 
 ### Changed
+- Deferred heavy imports (`torch`, `transformers`, `sentence_transformers`) to first use, reducing CLI startup time for non-RAG commands (e.g., `db-status`, `db-start`)
 - Scoped Makefile `lint` and `format` targets to `src/ tests/ demos/`
 
 ### Removed
@@ -107,4 +108,3 @@ See [LICENSE](LICENSE) for details.
 [0.3.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rhel-lightspeed/docs2db-api/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rhel-lightspeed/docs2db-api/releases/tag/v0.1.0
-

@@ -17,8 +17,6 @@ from docs2db_api.db_lifecycle import destroy_database
 from docs2db_api.db_lifecycle import start_database
 from docs2db_api.db_lifecycle import stop_database
 from docs2db_api.exceptions import Docs2DBException
-from docs2db_api.rag.engine import RAGConfig
-from docs2db_api.rag.engine import UniversalRAGEngine
 
 
 logger = structlog.get_logger(__name__)
@@ -225,6 +223,9 @@ def query(
     ] = None,
 ) -> None:
     """Search documents using RAG engine with hybrid search and reranking."""
+    from docs2db_api.rag.engine import RAGConfig
+    from docs2db_api.rag.engine import UniversalRAGEngine
+
     # For text/json formats, suppress all logging to keep output clean
     quiet_mode = output_format != OutputFormat.log
     if quiet_mode:

@@ -28,10 +28,7 @@ import structlog
 from docs2db_api.config import settings
 from docs2db_api.database import DatabaseManager
 from docs2db_api.database import get_db_config
-from docs2db_api.embeddings import EMBEDDING_CONFIGS
-from docs2db_api.embeddings import GraniteEmbeddingProvider
 from docs2db_api.exceptions import ConfigurationError
-from docs2db_api.reranker import get_reranker
 
 
 # Configure logging
@@ -324,6 +321,8 @@ class UniversalRAGEngine:
             ValueError: If no models found in database or model_name is invalid
             DatabaseError: If database connection fails
         """
+        from docs2db_api.embeddings import EMBEDDING_CONFIGS
+
         if self._started:
             logger.warning("RAG engine already started, ignoring duplicate start() call")
             return
@@ -542,6 +541,8 @@ class UniversalRAGEngine:
 
     def _get_embedding_provider(self):
         """Get the appropriate embedding provider for the configured model"""
+        from docs2db_api.embeddings import GraniteEmbeddingProvider
+
         if self.model_config is None:
             raise RuntimeError("model_config must be set before calling this method")
 
@@ -924,6 +925,8 @@ class UniversalRAGEngine:
         Raises:
             Exception: If model cannot be loaded (e.g., offline deployment without cache)
         """
+        from docs2db_api.reranker import get_reranker
+
         try:
             reranker = get_reranker()
             # Run a dummy prediction to force model loading
@@ -941,6 +944,8 @@ class UniversalRAGEngine:
 
     async def _rerank_documents(self, query: str, documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rerank documents using a cross-encoder model for improved accuracy."""
+        from docs2db_api.reranker import get_reranker
+
         reranker = get_reranker()
 
         # Rerank all retrieved documents (no top_k limit)
