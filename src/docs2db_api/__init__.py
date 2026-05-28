@@ -19,7 +19,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.dev.set_exc_info,
         structlog.processors.TimeStamper(fmt="ISO"),
-        structlog.dev.ConsoleRenderer(colors=True),
+        structlog.dev.ConsoleRenderer(),  # colors=None: auto-detect TTY
     ],
     wrapper_class=structlog.make_filtering_bound_logger(log_level),
     logger_factory=structlog.PrintLoggerFactory(),
